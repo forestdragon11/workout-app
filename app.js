@@ -240,12 +240,11 @@ function renderPlanList() {
 
     card.append(title, status);
     app.append(card);
-
-    const clearBtn = document.createElement('button');
-    clearBtn.textContent = 'Clear all data';
-    clearBtn.className = 'clear-btn';
-    app.append(clearBtn);
   }
+  const clearBtn = document.createElement('button');
+  clearBtn.textContent = 'Clear all data';
+  clearBtn.className = 'clear-btn';
+  app.append(clearBtn);
 }
 
 function renderPlanDetail() {
