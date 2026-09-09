@@ -1,3 +1,7 @@
+* {
+  box-sizing: border-box;
+}
+
 body {
   font-family: system-ui, sans-serif;
   max-width: 600px;
@@ -23,7 +27,14 @@ body {
   border-radius: 6px;
   padding: 0.75rem;
   margin-bottom: 0.5rem;
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
+
 
 .back-btn { margin-bottom: 1rem; }
 
@@ -84,3 +95,48 @@ body {
 }
 
 .session.open .session-note { display: block; }
+
+button {
+  min-height: 44px;
+  padding: 0.7rem 1.2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  background: #14251f;
+  border: none;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
+
+button:active {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transform: translateY(1px);
+}
+
+.note-btn {
+  font-size: 0.9rem;
+  padding: 0.5rem 1rem;
+  background: #555;
+}
+
+.back-btn {
+  background: #666;
+}
+
+.add-btn, .add-ex-btn {
+  float: right;
+  font-size: 1.4rem;
+  line-height: 1;
+  padding: 0.4rem 0.9rem;
+  background: #111;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+
+.checkbox-row input { width: auto; }

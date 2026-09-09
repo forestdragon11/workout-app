@@ -1,24 +1,6 @@
-
-let plans = [
-  { id: 1, name: 'HIIT',                gapDays: 3 },
-  { id: 2, name: 'Flexibility',         gapDays: 1 },
-  { id: 3, name: 'Resistance training', gapDays: 2 },
-  { id: 4, name: 'Calisthenics',        gapDays: 3 },
-];
-
-let exercises = [
-  { id: 1, planIds: [1],    name: 'Bike',                kind: 'timed',    isRoutine: false },
-  { id: 2, planIds: [2],    name: 'Front split training', kind: 'unloaded', isRoutine: true  },
-  { id: 3, planIds: [3],    name: 'Deadlift',            kind: 'loaded',   isRoutine: false },
-  { id: 4, planIds: [3, 4], name: 'Press-ups',           kind: 'unloaded', isRoutine: false },
-];
-
-let sessions = [
-  { id: 1, exerciseId: 1, at: Date.now() - 2 * 86400000, duration: 30, notes: '' },
-  { id: 2, exerciseId: 2, at: Date.now() - 5 * 86400000, rounds: 3, completedWhole: false, notes: 'Tight hamstrings' },
-  { id: 3, exerciseId: 3, at: Date.now() - 1 * 86400000, load: 40, reps: 8, notes: '' },
-];
-
+let plans = [];
+let exercises = [];
+let sessions = [];
 
 function save() {
   localStorage.setItem('data', JSON.stringify({ plans, exercises, sessions }));
@@ -40,6 +22,48 @@ function parentView(v) {
   }
   return { name: 'plans' };
   if (v.name === 'history') return { name: 'plan', planId: v.fromPlanId };
+  if (v.name === 'addPlan') return { name: 'plans' };
+  if (v.name === 'addExercise') return { name: 'plan', planId: v.fromPlanId };
+
+}
+
+function savePlan() {
+  const form = document.querySelector('.form');
+  const name = form.querySelector('[name="name"]').value.trim();
+  if (!name) { showToast('Please enter a name.'); return; }
+
+  plans.push({
+    id: plans.length === 0 ? 1 : Math.max(...plans.map(p => p.id)) + 1,
+    name,
+    gapDays: Number(form.querySelector('[name="gapDays"]').value) || 1,
+  });
+
+  save();
+  view = { name: 'plans' };
+  render();
+  showToast('Plan created.');
+}
+
+function saveExercise() {
+  const form = document.querySelector('.form');
+  const name = form.querySelector('[name="name"]').value.trim();
+  if (!name) { showToast('Please enter a name.'); return; }
+
+  const checked = form.querySelectorAll('[name="plan"]:checked');
+  const planIds = [...checked].map(cb => Number(cb.value));
+
+  exercises.push({
+    id: exercises.length === 0 ? 1 : Math.max(...exercises.map(e => e.id)) + 1,
+    name,
+    kind: form.querySelector('[name="kind"]').value,
+    isRoutine: form.querySelector('[name="isRoutine"]').checked,
+    planIds,
+  });
+
+  save();
+  view = { name: 'plan', planId: view.fromPlanId };
+  render();
+  showToast('Exercise created.');
 }
 
 // --- toast ---
@@ -137,6 +161,7 @@ function saveSession() {
   }
 
   if (ex.kind === 'unloaded' || ex.kind === 'loaded') {
+    session.sets = Number(get('sets').value);
     session.reps = Number(get('reps').value);
   }
 
@@ -170,10 +195,11 @@ function formatDate(timestamp) {
 
 function sessionDetail(s, ex) {
   if (ex.kind === 'timed') return `${s.duration} min`;
-  if (ex.kind === 'loaded') return `${s.load} kg × ${s.reps}`;
   const unit = ex.isRoutine ? 'rounds' : 'reps';
+  const setsPart = s.sets ? `${s.sets} × ` : '';
+  if (ex.kind === 'loaded') return `${s.load} kg · ${setsPart}${s.reps} ${unit}`;
   const whole = ex.isRoutine && !s.completedWhole ? ' (partial)' : '';
-  return `${s.reps} ${unit}${whole}`;
+  return `${setsPart}${s.reps} ${unit}${whole}`;
 }
 
 // --- render ---
@@ -187,9 +213,15 @@ function render() {
   if (view.name === 'plan')  renderPlanDetail();
   if (view.name === 'log') renderLogForm();
   if (view.name === 'history') renderHistory();
+  if (view.name === 'addPlan') renderAddPlan();
+  if (view.name === 'addExercise') renderAddExercise();
 }
 
 function renderPlanList() {
+  const addBtn = document.createElement('button');
+  addBtn.textContent = '+';
+  addBtn.className = 'add-btn';
+  app.append(addBtn);
   for (const plan of plans) {
     const card = document.createElement('div');
     card.className = 'plan';
@@ -221,7 +253,12 @@ function renderPlanDetail() {
 
   const title = document.createElement('h2');
   title.textContent = plan.name;
+  
+  const addBtn = document.createElement('button');
+  addBtn.textContent = '+';
+  addBtn.className = 'add-ex-btn';
 
+  app.append(addBtn);
   app.append(back, title);
 
 for (const ex of list) {
@@ -241,8 +278,8 @@ for (const ex of list) {
   const logBtn = document.createElement('button');
   logBtn.textContent = 'Log session';
   logBtn.className = 'log-btn';
-  card.append(logBtn);
-  card.append(name, meta);
+ 
+  card.append(name, meta, logBtn);
   app.append(card);
 }
 }
@@ -267,8 +304,10 @@ function renderLogForm() {
   }
 
   if (ex.kind === 'unloaded' || ex.kind === 'loaded') {
-    form.append(field(ex.isRoutine ? 'Rounds' : 'Reps', 'reps', 'number'));
+  form.append(field('Sets', 'sets', 'number'));
+  form.append(field(ex.isRoutine ? 'Rounds' : 'Reps', 'reps', 'number'));
   }
+
 
   if (ex.kind === 'loaded') {
     form.append(field('Load (kg)', 'load', 'number'));
@@ -335,7 +374,103 @@ function renderHistory() {
   }
 }
 
+function renderAddPlan() {
+  const back = document.createElement('button');
+  back.textContent = '← Back';
+  back.className = 'back-btn';
+
+  const title = document.createElement('h2');
+  title.textContent = 'New plan';
+
+  const form = document.createElement('div');
+  form.className = 'form';
+  form.append(field('Plan name', 'name', 'text'));
+  form.append(field('Days between sessions', 'gapDays', 'number'));
+
+  const saveBtn = document.createElement('button');
+  saveBtn.textContent = 'Save plan';
+  saveBtn.className = 'save-plan-btn';
+
+  app.append(back, title, form, saveBtn);
+}
+
+function renderAddExercise() {
+  const back = document.createElement('button');
+  back.textContent = '← Back';
+  back.className = 'back-btn';
+
+  const title = document.createElement('h2');
+  title.textContent = 'New exercise';
+
+  const form = document.createElement('div');
+  form.className = 'form';
+  form.append(field('Exercise name', 'name', 'text'));
+
+  const kindWrap = document.createElement('label');
+  kindWrap.className = 'field';
+  const kindLabel = document.createElement('span');
+  kindLabel.textContent = 'Type';
+  const kindSelect = document.createElement('select');
+  kindSelect.name = 'kind';
+  for (const [value, label] of [
+    ['timed', 'Timed (duration)'],
+    ['unloaded', 'Reps only'],
+    ['loaded', 'Reps with weight'],
+  ]) {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = label;
+    kindSelect.append(opt);
+  }
+  kindWrap.append(kindLabel, kindSelect);
+  form.append(kindWrap);
+
+  form.append(field('Is a routine (multiple exercises)', 'isRoutine', 'checkbox'));
+
+  const plansWrap = document.createElement('div');
+  plansWrap.className = 'field';
+  const plansLabel = document.createElement('span');
+  plansLabel.textContent = 'Belongs to plans';
+  plansWrap.append(plansLabel);
+
+  for (const p of plans) {
+    const row = document.createElement('label');
+    row.className = 'checkbox-row';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.name = 'plan';
+    cb.value = p.id;
+    if (p.id === view.fromPlanId) cb.checked = true;
+    const span = document.createElement('span');
+    span.textContent = p.name;
+    row.append(cb, span);
+    plansWrap.append(row);
+  }
+  form.append(plansWrap);
+
+  const saveBtn = document.createElement('button');
+  saveBtn.textContent = 'Save exercise';
+  saveBtn.className = 'save-exercise-btn';
+
+  app.append(back, title, form, saveBtn);
+}
+
 app.addEventListener('click', (e) => {
+
+  if (e.target.matches('.add-btn')) {
+  view = { name: 'addPlan' };
+  render();
+  return;
+}
+
+if (e.target.matches('.add-ex-btn')) {
+  view = { name: 'addExercise', fromPlanId: view.planId };
+  render();
+  return;
+}
+
+if (e.target.matches('.save-plan-btn')) { savePlan(); return; }
+if (e.target.matches('.save-exercise-btn')) { saveExercise(); return; }
   if (e.target.matches('.save-btn')) {
   saveSession();
   return;
