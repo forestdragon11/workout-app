@@ -1,0 +1,86 @@
+body {
+  font-family: system-ui, sans-serif;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+.plan {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.plan h2 { margin: 0 0 0.25rem; font-size: 1.1rem; }
+.plan p  { margin: 0; color: #666; font-size: 0.9rem; }
+
+.plan.due { border-color: #2a7; background: #f2fbf7; }
+
+.plan { cursor: pointer; }
+
+.exercise {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.back-btn { margin-bottom: 1rem; }
+
+.exercise h3 { margin: 0 0 0.25rem; font-size: 1rem; }
+.exercise p  { margin: 0; color: #666; font-size: 0.85rem; }
+
+.field { display: block; margin-bottom: 0.75rem; }
+.field span { display: block; font-size: 0.85rem; color: #444; margin-bottom: 0.2rem; }
+.field input { width: 100%; padding: 0.4rem; font-size: 1rem; }
+.field input[type="checkbox"] { width: auto; }
+.save-btn { padding: 0.6rem 1rem; font-size: 1rem; }
+
+#toast {
+  display: flex; 
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  position: fixed;
+  bottom: auto;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80%;
+  height: 20%;
+  background: #333;
+  color: #fff;
+  padding: 0.6rem 1.2rem;
+  border-radius: 12px;
+  font-size: 1.5 rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+#toast.visible { opacity: 1; }
+
+.session {
+  border-bottom: 1px solid #eee;
+  padding: 0.6rem 0;
+}
+
+.session-main { font-size: 0.95rem; }
+
+.note-btn {
+  font-size: 0.75rem;
+  margin-top: 0.3rem;
+  padding: 0.15rem 0.5rem;
+}
+
+.session-note {
+  display: none;
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  color: #555;
+  background: #f6f6f6;
+  padding: 0.5rem;
+  border-radius: 4px;
+}
+
+.session.open .session-note { display: block; }
