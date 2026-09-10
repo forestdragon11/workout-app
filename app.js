@@ -20,11 +20,10 @@ function parentView(v) {
     const ex = exercises.find(e => e.id === v.exerciseId);
     return { name: 'plan', planId: v.fromPlanId ?? ex.planIds[0] };
   }
-  return { name: 'plans' };
   if (v.name === 'history') return { name: 'plan', planId: v.fromPlanId };
   if (v.name === 'addPlan') return { name: 'plans' };
   if (v.name === 'addExercise') return { name: 'plan', planId: v.fromPlanId };
-
+  return { name: 'plans' };
 }
 
 function savePlan() {
@@ -32,10 +31,13 @@ function savePlan() {
   const name = form.querySelector('[name="name"]').value.trim();
   if (!name) { showToast('Please enter a name.'); return; }
 
+  const gapDays = Number(form.querySelector('[name="gapDays"]').value);
+  if (gapDays < 0) { showToast('Days between sessions cannot be negative.'); return; }
+
   plans.push({
     id: plans.length === 0 ? 1 : Math.max(...plans.map(p => p.id)) + 1,
     name,
-    gapDays: Number(form.querySelector('[name="gapDays"]').value) || 1,
+    gapDays: gapDays || 1,
   });
 
   save();
@@ -43,7 +45,6 @@ function savePlan() {
   render();
   showToast('Plan created.');
 }
-
 function saveExercise() {
   const form = document.querySelector('.form');
   const name = form.querySelector('[name="name"]').value.trim();
@@ -60,10 +61,100 @@ function saveExercise() {
     planIds,
   });
 
+  if (planIds.length === 0) { showToast('Please choose at least one plan.'); return; }
+
   save();
   view = { name: 'plan', planId: view.fromPlanId };
   render();
   showToast('Exercise created.');
+}
+
+// --- delete ---
+
+function deleteSession(id) {
+  if (!confirm('Delete this session?')) return;
+  sessions = sessions.filter(s => s.id !== id);
+  save();
+  render();
+  showToast('Session deleted.');
+}
+
+function deleteExercise(id) {
+  const ex = exercises.find(e => e.id === id);
+  const count = sessionsForExercise(id).length;
+  const msg = count === 0
+    ? `Delete "${ex.name}"?`
+    : `Delete "${ex.name}" and its ${count} session${count === 1 ? '' : 's'}?`;
+  if (!confirm(msg)) return;
+
+  sessions = sessions.filter(s => s.exerciseId !== id);
+  exercises = exercises.filter(e => e.id !== id);
+  save();
+  view = parentView(view);
+  render();
+  showToast('Exercise deleted.');
+}
+
+function deletePlan(id) {
+  const plan = plans.find(p => p.id === id);
+  if (!confirm(`Delete the plan "${plan.name}"? Exercises used in other plans will be kept.`)) return;
+
+  const doomed = exercises.filter(e => e.planIds.length === 1 && e.planIds[0] === id);
+  const doomedIds = doomed.map(e => e.id);
+
+  sessions = sessions.filter(s => !doomedIds.includes(s.exerciseId));
+  exercises = exercises
+    .filter(e => !doomedIds.includes(e.id))
+    .map(e => ({ ...e, planIds: e.planIds.filter(pid => pid !== id) }));
+  plans = plans.filter(p => p.id !== id);
+
+  save();
+  view = { name: 'plans' };
+  render();
+  showToast('Plan deleted.');
+}
+
+// ---export & import---
+
+function exportData() {
+  const data = JSON.stringify({ plans, exercises, sessions }, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `workout-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+
+  URL.revokeObjectURL(url);
+  showToast('Backup downloaded.');
+}
+
+function importData(file) {
+  const reader = new FileReader();
+
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (!data.plans || !data.exercises || !data.sessions) {
+        showToast('That file does not look like a backup.');
+        return;
+      }
+      if (!confirm('Replace all current data with this backup?')) return;
+
+      plans = data.plans;
+      exercises = data.exercises;
+      sessions = data.sessions;
+      save();
+      view = { name: 'plans' };
+      render();
+      showToast('Backup restored.');
+    } catch (err) {
+      showToast('Could not read that file.');
+    }
+  };
+
+  reader.readAsText(file);
 }
 
 // --- toast ---
@@ -81,7 +172,11 @@ function showToast(message) {
 
 function daysSince(timestamp) {
   if (timestamp === null) return null;
-  return Math.floor((Date.now() - timestamp) / 86400000);
+  const then = new Date(timestamp);
+  const now = new Date();
+  then.setHours(0, 0, 0, 0);
+  now.setHours(0, 0, 0, 0);
+  return Math.round((now - then) / 86400000);
 }
 
 function agoText(days) {
@@ -146,27 +241,44 @@ function todayString() {
 function saveSession() {
   const ex = exercises.find(e => e.id === view.exerciseId);
   const form = document.querySelector('.form');
-
   const get = (name) => form.querySelector(`[name="${name}"]`);
+
+  const dateStr = get('date').value;
+  if (!dateStr) { showToast('Please choose a date.'); return; }
+
+  const at = dateStringToTimestamp(dateStr);
+  if (at > Date.now()) { showToast('That date is in the future.'); return; }
 
   const session = {
     id: sessions.length === 0 ? 1 : Math.max(...sessions.map(s => s.id)) + 1,
     exerciseId: ex.id,
-    at: dateStringToTimestamp(get('date').value),
-    notes: get('notes').value,
+    at,
+    notes: get('notes').value.trim(),
   };
 
   if (ex.kind === 'timed') {
-    session.duration = Number(get('duration').value);
+    const duration = Number(get('duration').value);
+    if (!duration || duration <= 0) { showToast('Please enter a duration.'); return; }
+    session.duration = duration;
   }
 
   if (ex.kind === 'unloaded' || ex.kind === 'loaded') {
-    session.sets = Number(get('sets').value);
-    session.reps = Number(get('reps').value);
+    const setsRaw = get('sets').value;
+    const sets = setsRaw === '' ? 1 : Number(setsRaw);
+    if (sets <= 0) { showToast('Sets must be at least 1.'); return; }
+    session.sets = sets;
+
+    const repsRaw = get('reps').value;
+    const reps = repsRaw === '' ? 1 : Number(repsRaw);
+    if (reps <= 0) { showToast(ex.isRoutine ? 'Rounds must be at least 1.' : 'Reps must be at least 1.'); return; }
+    session.reps = reps;
   }
 
   if (ex.kind === 'loaded') {
-    session.load = Number(get('load').value);
+    const loadRaw = get('load').value;
+    const load = loadRaw === '' ? 0 : Number(loadRaw);
+    if (load < 0) { showToast('Load cannot be negative.'); return; }
+    session.load = load;
   }
 
   if (ex.isRoutine) {
@@ -175,10 +287,8 @@ function saveSession() {
 
   sessions.push(session);
   save();
-
   view = { name: 'plan', planId: view.fromPlanId ?? ex.planIds[0] };
   render();
-
   showToast('Session logged. Well done.');
 }
 
@@ -222,6 +332,7 @@ function renderPlanList() {
   addBtn.textContent = '+';
   addBtn.className = 'add-btn';
   app.append(addBtn);
+
   for (const plan of plans) {
     const card = document.createElement('div');
     card.className = 'plan';
@@ -241,6 +352,21 @@ function renderPlanList() {
     card.append(title, status);
     app.append(card);
   }
+  const exportBtn = document.createElement('button');
+  exportBtn.textContent = 'Export backup';
+  exportBtn.className = 'export-btn';
+
+  const importBtn = document.createElement('button');
+  importBtn.textContent = 'Import backup';
+  importBtn.className = 'import-btn';
+
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = 'application/json';
+  fileInput.className = 'file-input';
+
+  app.append(exportBtn, importBtn, fileInput);
+
   const clearBtn = document.createElement('button');
   clearBtn.textContent = 'Clear all data';
   clearBtn.className = 'clear-btn';
@@ -258,6 +384,11 @@ function renderPlanDetail() {
   const title = document.createElement('h2');
   title.textContent = plan.name;
   
+  const delPlanBtn = document.createElement('button');
+  delPlanBtn.textContent = 'Delete plan';
+  delPlanBtn.className = 'del-plan-btn';
+  app.append(delPlanBtn);
+
   const addBtn = document.createElement('button');
   addBtn.textContent = '+';
   addBtn.className = 'add-ex-btn';
@@ -282,6 +413,11 @@ for (const ex of list) {
   const logBtn = document.createElement('button');
   logBtn.textContent = 'Log session';
   logBtn.className = 'log-btn';
+
+  const delBtn = document.createElement('button');
+  delBtn.textContent = 'Delete';
+  delBtn.className = 'del-ex-btn';
+  card.append(delBtn);
  
   card.append(name, meta, logBtn);
   app.append(card);
@@ -372,6 +508,11 @@ function renderHistory() {
       note.textContent = s.notes;
 
       row.append(noteBtn, note);
+
+      const delSessBtn = document.createElement('button');
+      delSessBtn.textContent = 'Delete';
+      delSessBtn.className = 'del-sess-btn';
+      row.append(delSessBtn);
     }
 
     app.append(row);
@@ -465,28 +606,28 @@ app.addEventListener('click', (e) => {
   view = { name: 'addPlan' };
   render();
   return;
-}
+  }
 
-if (e.target.matches('.add-ex-btn')) {
+  if (e.target.matches('.add-ex-btn')) {
   view = { name: 'addExercise', fromPlanId: view.planId };
   render();
   return;
-}
+  }
 
-if (e.target.matches('.save-plan-btn')) { savePlan(); return; }
-if (e.target.matches('.save-exercise-btn')) { saveExercise(); return; }
+  if (e.target.matches('.save-plan-btn')) { savePlan(); return; }
+  if (e.target.matches('.save-exercise-btn')) { saveExercise(); return; }
   if (e.target.matches('.save-btn')) {
   saveSession();
   return;
   }
   
- if (e.target.matches('.back-btn')) {
+  if (e.target.matches('.back-btn')) {
   view = parentView(view);
   render();
   return;
-}
+  }
 
-    if (e.target.matches('.log-btn')) {
+  if (e.target.matches('.log-btn')) {
   const card = e.target.closest('.exercise');
   view = {
   name: 'log',
@@ -499,6 +640,21 @@ if (e.target.matches('.save-exercise-btn')) { saveExercise(); return; }
 
   if (e.target.matches('.note-btn')) {
   e.target.closest('.session').classList.toggle('open');
+  return;
+}
+
+if (e.target.matches('.del-sess-btn')) {
+  deleteSession(Number(e.target.closest('.session').dataset.sessionId));
+  return;
+}
+
+if (e.target.matches('.del-ex-btn')) {
+  deleteExercise(Number(e.target.closest('.exercise').dataset.exerciseId));
+  return;
+}
+
+if (e.target.matches('.del-plan-btn')) {
+  deletePlan(view.planId);
   return;
 }
 
@@ -527,9 +683,21 @@ if (e.target.matches('.clear-btn')) {
   return;
 }
 
+if (e.target.matches('.export-btn')) { exportData(); return; }
+
+if (e.target.matches('.import-btn')) {
+  document.querySelector('.file-input').click();
+  return;
+}
+
 
 });
 
+app.addEventListener('change', (e) => {
+  if (e.target.matches('.file-input') && e.target.files.length > 0) {
+    importData(e.target.files[0]);
+  }
+});
 
 function logSession(planId) {
   const exercise = exercises.find(e => e.planIds.includes(planId));

@@ -125,7 +125,10 @@ button:active {
 }
 
 .add-btn, .add-ex-btn {
-  float: right;
+  float: none;
+  display: block;
+  margin-left: auto;
+  margin-bottom: 1rem;
   font-size: 1.4rem;
   line-height: 1;
   padding: 0.4rem 0.9rem;
@@ -146,4 +149,28 @@ button:active {
   margin-top: 2rem;
   font-size: 0.85rem;
   min-height: 36px;
+}
+
+.del-ex-btn, .del-sess-btn, .del-plan-btn {
+  background: #8a2a2a;
+  font-size: 0.8rem;
+  min-height: 32px;
+  padding: 0.3rem 0.7rem;
+  margin-left: 0.5rem;
+}
+
+.del-plan-btn {
+  margin-left: 0;
+  margin-bottom: 1rem;
+  display: block;
+}
+
+.file-input { display: none; }
+
+.export-btn, .import-btn {
+  background: #445;
+  font-size: 0.85rem;
+  min-height: 36px;
+  margin-right: 0.5rem;
+  margin-top: 1rem;
 }
