@@ -34,17 +34,25 @@ function savePlan() {
   const gapDays = Number(form.querySelector('[name="gapDays"]').value);
   if (gapDays < 0) { showToast('Days between sessions cannot be negative.'); return; }
 
-  plans.push({
-    id: plans.length === 0 ? 1 : Math.max(...plans.map(p => p.id)) + 1,
-    name,
-    gapDays: gapDays || 1,
-  });
+  const editing = plans.find(p => p.id === view.editId);
+
+  if (editing) {
+    editing.name = name;
+    editing.gapDays = gapDays || 1;
+  } else {
+    plans.push({
+      id: plans.length === 0 ? 1 : Math.max(...plans.map(p => p.id)) + 1,
+      name,
+      gapDays: gapDays || 1,
+    });
+  }
 
   save();
   view = { name: 'plans' };
   render();
-  showToast('Plan created.');
+  showToast(editing ? 'Plan updated.' : 'Plan created.');
 }
+
 function saveExercise() {
   const form = document.querySelector('.form');
   const name = form.querySelector('[name="name"]').value.trim();
@@ -52,21 +60,31 @@ function saveExercise() {
 
   const checked = form.querySelectorAll('[name="plan"]:checked');
   const planIds = [...checked].map(cb => Number(cb.value));
+  if (planIds.length === 0) { showToast('Please choose at least one plan.'); return; }
 
+  const editing = exercises.find(e => e.id === view.editId);
+
+ if (editing) {
+  editing.name = name;
+  editing.kind = form.querySelector('[name="kind"]').value;
+  editing.isRoutine = form.querySelector('[name="isRoutine"]').checked;
+  editing.planIds = planIds;
+  editing.notes = form.querySelector('[name="notes"]').value.trim();
+ } else {
   exercises.push({
     id: exercises.length === 0 ? 1 : Math.max(...exercises.map(e => e.id)) + 1,
     name,
     kind: form.querySelector('[name="kind"]').value,
     isRoutine: form.querySelector('[name="isRoutine"]').checked,
     planIds,
+    notes: form.querySelector('[name="notes"]').value.trim(),
   });
-
-  if (planIds.length === 0) { showToast('Please choose at least one plan.'); return; }
+ }
 
   save();
   view = { name: 'plan', planId: view.fromPlanId };
   render();
-  showToast('Exercise created.');
+  showToast(editing ? 'Exercise updated.' : 'Exercise created.');
 }
 
 // --- delete ---
@@ -169,6 +187,11 @@ function showToast(message) {
 
 // --- helpers ---
 
+function dateToString(timestamp) {
+  const d = new Date(timestamp);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
 function daysSince(timestamp) {
   if (timestamp === null) return null;
@@ -225,8 +248,11 @@ function field(labelText, name, type, value = '') {
   const span = document.createElement('span');
   span.textContent = labelText;
 
-  const input = document.createElement('input');
-  input.type = type;
+  const input = type === 'textarea'
+    ? document.createElement('textarea')
+    : document.createElement('input');
+
+  if (type !== 'textarea') input.type = type;
   input.name = name;
   if (value !== '') input.value = value;
 
@@ -239,6 +265,7 @@ function todayString() {
 }
 
 function saveSession() {
+  const editing = sessions.find(s => s.id === view.editId);
   const ex = exercises.find(e => e.id === view.exerciseId);
   const form = document.querySelector('.form');
   const get = (name) => form.querySelector(`[name="${name}"]`);
@@ -285,11 +312,15 @@ function saveSession() {
     session.completedWhole = get('completedWhole').checked;
   }
 
+  if (editing) {
+  Object.assign(editing, session, { id: editing.id });
+  } else {
   sessions.push(session);
+  }
   save();
   view = { name: 'plan', planId: view.fromPlanId ?? ex.planIds[0] };
   render();
-  showToast('Session logged. Well done.');
+  showToast(editing ? 'Session updated.' : 'Session logged. Well done.');
 }
 
 function dateStringToTimestamp(str) {
@@ -349,7 +380,19 @@ function renderPlanList() {
       card.classList.add('due');
     }
 
-    card.append(title, status);
+    const actions = document.createElement('div');
+    actions.className = 'card-actions';
+
+    const delLink = document.createElement('span');
+    delLink.textContent = 'Delete plan';
+    delLink.className = 'link-action link-danger del-plan-btn';
+
+    const editLink = document.createElement('span');
+    editLink.textContent = 'Edit plan';
+    editLink.className = 'link-action edit-plan-btn';
+
+    actions.append(delLink, editLink);
+    card.append(title, status, actions);
     app.append(card);
   }
   const exportBtn = document.createElement('button');
@@ -383,18 +426,16 @@ function renderPlanDetail() {
 
   const title = document.createElement('h2');
   title.textContent = plan.name;
-  
-  const delPlanBtn = document.createElement('button');
-  delPlanBtn.textContent = 'Delete plan';
-  delPlanBtn.className = 'del-plan-btn';
-  app.append(delPlanBtn);
 
   const addBtn = document.createElement('button');
   addBtn.textContent = '+';
   addBtn.className = 'add-ex-btn';
 
-  app.append(addBtn);
-  app.append(back, title);
+ const topBar = document.createElement('div');
+ topBar.className = 'top-bar';
+ topBar.append(back, addBtn);
+
+ app.append(topBar, title);
 
 for (const ex of list) {
   const card = document.createElement('div');
@@ -413,11 +454,20 @@ for (const ex of list) {
   const logBtn = document.createElement('button');
   logBtn.textContent = 'Log session';
   logBtn.className = 'log-btn';
+  
+  const actions = document.createElement('div');
+  actions.className = 'card-actions';
 
-  const delBtn = document.createElement('button');
-  delBtn.textContent = 'Delete';
-  delBtn.className = 'del-ex-btn';
-  card.append(delBtn);
+  const delLink = document.createElement('span');
+  delLink.textContent = 'Delete';
+  delLink.className = 'link-action link-danger del-ex-btn';
+
+  const editLink = document.createElement('span');
+  editLink.textContent = 'Edit';
+  editLink.className = 'link-action edit-ex-btn';
+
+  actions.append(delLink, editLink);
+  card.append(actions, name, meta, logBtn);
  
   card.append(name, meta, logBtn);
   app.append(card);
@@ -425,6 +475,7 @@ for (const ex of list) {
 }
 
 function renderLogForm() {
+  const editing = sessions.find(s => s.id === view.editId);
   const ex = exercises.find(e => e.id === view.exerciseId);
 
   const back = document.createElement('button');
@@ -432,38 +483,58 @@ function renderLogForm() {
   back.className = 'back-btn';
 
   const title = document.createElement('h2');
-  title.textContent = `Log: ${ex.name}`;
+  title.textContent = editing ? `Edit: ${ex.name}` : `Log: ${ex.name}`;
+
+  let notesBlock = null;
+if (ex.notes) {
+  notesBlock = document.createElement('div');
+  notesBlock.className = 'ex-notes';
+
+  const notesBtn = document.createElement('button');
+  notesBtn.textContent = 'What is this?';
+  notesBtn.className = 'ex-notes-btn';
+
+  const notesText = document.createElement('p');
+  notesText.className = 'ex-notes-text';
+  notesText.textContent = ex.notes;
+
+  notesBlock.append(notesBtn, notesText);
+}
 
   const form = document.createElement('div');
   form.className = 'form';
 
-  form.append(field('Date', 'date', 'date', todayString()));
+  form.append(field('Date', 'date', 'date', editing ? dateToString(editing.at) : todayString()));
 
   if (ex.kind === 'timed') {
-    form.append(field('Duration (minutes)', 'duration', 'number'));
+    form.append(field('Duration (minutes)', 'duration', 'number', editing ? editing.duration : ''));
   }
 
   if (ex.kind === 'unloaded' || ex.kind === 'loaded') {
-  form.append(field('Sets', 'sets', 'number'));
-  form.append(field(ex.isRoutine ? 'Rounds' : 'Reps', 'reps', 'number'));
+    form.append(field('Sets', 'sets', 'number', editing ? editing.sets : ''));
+    form.append(field(ex.isRoutine ? 'Rounds' : 'Reps', 'reps', 'number', editing ? editing.reps : ''));
   }
 
-
   if (ex.kind === 'loaded') {
-    form.append(field('Load (kg)', 'load', 'number'));
+    form.append(field('Load (kg)', 'load', 'number', editing ? editing.load : ''));
   }
 
   if (ex.isRoutine) {
     form.append(field('Completed whole routine', 'completedWhole', 'checkbox'));
+    if (editing && editing.completedWhole) {
+      form.querySelector('[name="completedWhole"]').checked = true;
+    }
   }
 
-  form.append(field('Notes', 'notes', 'text'));
+  form.append(field('Notes', 'notes', 'textarea', editing ? editing.notes : ''));
 
   const saveBtn = document.createElement('button');
-  saveBtn.textContent = 'Save session';
+  saveBtn.textContent = editing ? 'Save changes' : 'Save session';
   saveBtn.className = 'save-btn';
 
-  app.append(back, title, form, saveBtn);
+  app.append(back, title);
+  if (notesBlock) app.append(notesBlock);
+  app.append(form, saveBtn);
 }
 
 function renderHistory() {
@@ -486,70 +557,87 @@ function renderHistory() {
     app.append(empty);
     return;
   }
-
   for (const s of list) {
-    const row = document.createElement('div');
-    row.className = 'session';
-    row.dataset.sessionId = s.id;
+  const row = document.createElement('div');
+  row.className = 'session';
+  row.dataset.sessionId = s.id;
 
-    const main = document.createElement('div');
-    main.className = 'session-main';
-    main.textContent = `${formatDate(s.at)} · ${sessionDetail(s, ex)}`;
+  const main = document.createElement('div');
+  main.className = 'session-main';
+  main.textContent = `${formatDate(s.at)} · ${sessionDetail(s, ex)}`;
 
-    row.append(main);
+  const actions = document.createElement('div');
+  actions.className = 'session-actions';
 
-    if (s.notes) {
-      const noteBtn = document.createElement('button');
-      noteBtn.textContent = 'Note';
-      noteBtn.className = 'note-btn';
+  const left = document.createElement('div');
+  left.className = 'session-actions-left';
 
-      const note = document.createElement('p');
-      note.className = 'session-note';
-      note.textContent = s.notes;
+  if (s.notes) {
+    const noteBtn = document.createElement('button');
+    noteBtn.textContent = 'Note';
+    noteBtn.className = 'note-btn';
+    left.append(noteBtn);
+  }
 
-      row.append(noteBtn, note);
+  const editLink = document.createElement('span');
+  editLink.textContent = 'Edit';
+  editLink.className = 'link-action edit-sess-btn';
+  left.append(editLink);
 
-      const delSessBtn = document.createElement('button');
-      delSessBtn.textContent = 'Delete';
-      delSessBtn.className = 'del-sess-btn';
-      row.append(delSessBtn);
-    }
+  const delLink = document.createElement('span');
+  delLink.textContent = 'Delete';
+  delLink.className = 'link-action link-danger del-sess-btn';
 
-    app.append(row);
+  actions.append(left, delLink);
+  row.append(main, actions);
+
+  if (s.notes) {
+    const note = document.createElement('p');
+    note.className = 'session-note';
+    note.textContent = s.notes;
+    row.append(note);
+  }
+
+  app.append(row);
   }
 }
 
 function renderAddPlan() {
+  const editing = plans.find(p => p.id === view.editId);
+
   const back = document.createElement('button');
   back.textContent = '← Back';
   back.className = 'back-btn';
 
   const title = document.createElement('h2');
-  title.textContent = 'New plan';
+  title.textContent = editing ? 'Edit plan' : 'New plan';
 
   const form = document.createElement('div');
   form.className = 'form';
-  form.append(field('Plan name', 'name', 'text'));
-  form.append(field('Days between sessions', 'gapDays', 'number'));
+  form.append(field('Plan name', 'name', 'text', editing ? editing.name : ''));
+  form.append(field('Days between sessions', 'gapDays', 'number', editing ? editing.gapDays : ''));
 
   const saveBtn = document.createElement('button');
-  saveBtn.textContent = 'Save plan';
+  saveBtn.textContent = editing ? 'Save changes' : 'Save plan';
   saveBtn.className = 'save-plan-btn';
 
   app.append(back, title, form, saveBtn);
 }
 
 function renderAddExercise() {
+
   const back = document.createElement('button');
   back.textContent = '← Back';
   back.className = 'back-btn';
 
+  const editing = exercises.find(e => e.id === view.editId);
+
   const title = document.createElement('h2');
-  title.textContent = 'New exercise';
+  title.textContent = editing? 'Edit plan' : 'New plan';
 
   const form = document.createElement('div');
   form.className = 'form';
-  form.append(field('Exercise name', 'name', 'text'));
+  form.append(field('Exercise name', 'name', 'text', editing ? editing.name : ''));
 
   const kindWrap = document.createElement('label');
   kindWrap.className = 'field';
@@ -557,6 +645,7 @@ function renderAddExercise() {
   kindLabel.textContent = 'Type';
   const kindSelect = document.createElement('select');
   kindSelect.name = 'kind';
+
   for (const [value, label] of [
     ['timed', 'Timed (duration)'],
     ['unloaded', 'Reps only'],
@@ -565,12 +654,16 @@ function renderAddExercise() {
     const opt = document.createElement('option');
     opt.value = value;
     opt.textContent = label;
+    if (editing && editing.kind === value) opt.selected = true;
     kindSelect.append(opt);
   }
   kindWrap.append(kindLabel, kindSelect);
   form.append(kindWrap);
 
   form.append(field('Is a routine (multiple exercises)', 'isRoutine', 'checkbox'));
+  if (editing && editing.isRoutine) {
+  form.querySelector('[name="isRoutine"]').checked = true;
+  }
 
   const plansWrap = document.createElement('div');
   plansWrap.className = 'field';
@@ -590,11 +683,14 @@ function renderAddExercise() {
     span.textContent = p.name;
     row.append(cb, span);
     plansWrap.append(row);
+    if (editing ? editing.planIds.includes(p.id) : p.id === view.fromPlanId) cb.checked = true;
   }
   form.append(plansWrap);
 
+  form.append(field('What this exercise involves (optional)', 'notes', 'textarea', editing ? (editing.notes ?? '') : ''));
+
   const saveBtn = document.createElement('button');
-  saveBtn.textContent = 'Save exercise';
+  saveBtn.textContent = editing ? 'Save changes' : 'Save exercise';
   saveBtn.className = 'save-exercise-btn';
 
   app.append(back, title, form, saveBtn);
@@ -620,6 +716,30 @@ app.addEventListener('click', (e) => {
   saveSession();
   return;
   }
+
+  if (e.target.matches('.edit-plan-btn')) {
+  view = { name: 'addPlan', editId: Number(e.target.closest('.plan').dataset.planId) };
+  render();
+  return;
+}
+
+if (e.target.matches('.edit-ex-btn')) {
+  view = { name: 'addExercise', editId: Number(e.target.closest('.exercise').dataset.exerciseId), fromPlanId: view.planId };
+  render();
+  return;
+}
+
+if (e.target.matches('.edit-sess-btn')) {
+  const s = sessions.find(x => x.id === Number(e.target.closest('.session').dataset.sessionId));
+  view = { name: 'log', editId: s.id, exerciseId: s.exerciseId, fromPlanId: view.fromPlanId };
+  render();
+  return;
+}
+
+if (e.target.matches('.ex-notes-btn')) {
+  e.target.closest('.ex-notes').classList.toggle('open');
+  return;
+}
   
   if (e.target.matches('.back-btn')) {
   view = parentView(view);
@@ -654,7 +774,7 @@ if (e.target.matches('.del-ex-btn')) {
 }
 
 if (e.target.matches('.del-plan-btn')) {
-  deletePlan(view.planId);
+  deletePlan(Number(e.target.closest('.plan').dataset.planId));
   return;
 }
 

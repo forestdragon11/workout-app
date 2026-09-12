@@ -35,6 +35,12 @@ body {
   gap: 0.5rem;
 }
 
+.exercise .card-actions {
+  align-self: stretch;
+  margin-top: 0;
+  margin-bottom: 0.25rem;
+}
+
 
 .back-btn { margin-bottom: 1rem; }
 
@@ -96,6 +102,26 @@ body {
 
 .session.open .session-note { display: block; }
 
+.session-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.4rem;
+}
+
+.session-actions-left {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.note-btn {
+  font-size: 0.8rem;
+  min-height: 32px;
+  padding: 0.3rem 0.8rem;
+  margin-top: 0;
+}
+
 button {
   min-height: 44px;
   padding: 0.7rem 1.2rem;
@@ -152,7 +178,6 @@ button:active {
 }
 
 .del-ex-btn, .del-sess-btn, .del-plan-btn {
-  background: #8a2a2a;
   font-size: 0.8rem;
   min-height: 32px;
   padding: 0.3rem 0.7rem;
@@ -173,4 +198,62 @@ button:active {
   min-height: 36px;
   margin-right: 0.5rem;
   margin-top: 1rem;
+}
+
+
+.field textarea {
+  width: 100%;
+  padding: 0.4rem;
+  font-size: 1rem;
+  font-family: inherit;
+  min-height: 5rem;
+  resize: vertical;
+}
+
+.ex-notes { margin-bottom: 1rem; }
+
+.ex-notes-btn {
+  background: #555;
+  font-size: 0.85rem;
+  min-height: 36px;
+}
+
+.ex-notes-text {
+  display: none;
+  margin: 0.5rem 0 0;
+  padding: 0.6rem;
+  background: #f6f6f6;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+}
+
+.ex-notes.open .ex-notes-text { display: block; }
+
+.card-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.75rem;
+}
+
+.link-action {
+  font-size: 0.8rem;
+  color: #2a4d3f;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0.4rem 0;
+}
+
+.link-danger { color: #8a2a2a; }
+
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.top-bar .back-btn,
+.top-bar .add-ex-btn {
+  margin: 0;
 }
